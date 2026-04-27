@@ -1,0 +1,17 @@
+{
+	"mcpServers": {
+		"redteam-kali": {
+			"command": "docker",
+			"args": [
+				"exec",
+				"-i",
+				"redteam-mcp",
+				"/app/.venv/bin/python",
+				"/app/src/server.py"
+			],
+			"disabled": false,
+			"autoApprove": [],
+			"alwaysAllow": []
+		}
+	}
+}

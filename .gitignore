@@ -1,0 +1,47 @@
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment variables
+.env
+.env.*
+
+# Docker
+*.tar
+
+# VS Code / Kiro IDE files (keep mcp.json since it's part of the project)
+.vscode/
+.kiro/steering/
+.kiro/specs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Temp / output files
+/tmp/
+*.out
+*.bak
+
+# Metasploit output
+/tmp/msf_run.rc
+
+# Nuclei output
+/tmp/harvest_out*
+/tmp/commix_out/
+
+# CHEATSHEET is local helper, not needed in repo
+CHEATSHEET.md
