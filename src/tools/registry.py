@@ -324,4 +324,112 @@ TOOL_REGISTRY: dict[str, dict] = {
             "limit":  "int — max results (default 100)",
         },
     },
+    # ── Gap Analysis Tools ───────────────────────────────────────────────
+    "jwt_attack": {
+        "description": "Analyze, tamper, crack HMAC, and attack JWT tokens using jwt_tool.",
+        "category": "exploit",
+        "args": {
+            "token":  "str — JWT token string (eyJ...)",
+            "mode":   "str — decode | crack | alg_confusion | none_alg | tamper (default decode)",
+            "secret": "str — wordlist path for crack mode, or secret key",
+        },
+    },
+    "cors_check": {
+        "description": "Test for CORS misconfiguration vulnerabilities using corsy.",
+        "category": "web",
+        "args": {
+            "url":     "str — target URL",
+            "threads": "int — concurrent threads (default 10)",
+            "headers": "str — extra request headers",
+        },
+    },
+    "smuggling_test": {
+        "description": "Test for HTTP Request Smuggling vulnerabilities (CL.TE, TE.CL, TE.TE) using smuggler.",
+        "category": "web",
+        "args": {
+            "url":      "str — target URL (http/https)",
+            "timeout":  "int — per-request timeout in seconds (default 10)",
+            "log_file": "str — output log path (default /tmp/smuggler_out.txt)",
+        },
+    },
+    "trufflehog_scan": {
+        "description": "Deep secret and credential scanner across filesystems and git history.",
+        "category": "osint",
+        "args": {
+            "target":        "str — path or git repo URL to scan",
+            "scan_type":     "str — filesystem | git | github | gitlab (default filesystem)",
+            "only_verified": "bool — only report verified live secrets (default false)",
+        },
+    },
+    "header_audit": {
+        "description": "Audit HTTP security headers (HSTS, CSP, X-Frame, MIME, Referrer, CORS).",
+        "category": "web",
+        "args": {
+            "url": "str — target URL",
+        },
+    },
+    "whois_lookup": {
+        "description": "WHOIS lookup for domain or IP registration info and nameservers.",
+        "category": "recon",
+        "args": {
+            "target": "str — domain or IP address",
+        },
+    },
+    "crt_sh_enum": {
+        "description": "Certificate Transparency log search (crt.sh) for passive subdomain discovery.",
+        "category": "recon",
+        "args": {
+            "domain": "str — target domain (e.g. example.com)",
+        },
+    },
+    "lfi_scan": {
+        "description": "Fuzz for Local File Inclusion (LFI) and Path Traversal vulnerabilities using ffuf and SecLists.",
+        "category": "web",
+        "args": {
+            "url":     "str — URL with FUZZ keyword",
+            "param":   "str — fuzz keyword (default FUZZ)",
+            "threads": "int — concurrent threads (default 40)",
+        },
+    },
+    "smb_enum": {
+        "description": "Windows/Samba SMB enumeration (shares, users, password policies) using enum4linux.",
+        "category": "recon",
+        "args": {
+            "target":   "str — target IP address",
+            "username": "str — optional SMB username",
+            "password": "str — optional SMB password",
+        },
+    },
+    "ssh_audit_tool": {
+        "description": "Audit SSH server algorithms and configuration for weak ciphers and vulnerabilities.",
+        "category": "recon",
+        "args": {
+            "host": "str — target hostname or IP",
+            "port": "int — SSH port (default 22)",
+        },
+    },
+    "open_redirect_check": {
+        "description": "Fuzz URL/redirect parameters for open redirect vulnerabilities using ffuf.",
+        "category": "web",
+        "args": {
+            "url":     "str — URL with FUZZ keyword",
+            "param":   "str — fuzz keyword (default FUZZ)",
+            "threads": "int — concurrent threads (default 30)",
+        },
+    },
+    "bypass_403": {
+        "description": "Attempt to bypass 403 Forbidden responses using header manipulation & path tricks.",
+        "category": "web",
+        "args": {
+            "url": "str — URL returning 403",
+        },
+    },
+    "js_extract": {
+        "description": "Extract endpoints, routes, and potential secrets/API keys from JavaScript files.",
+        "category": "web",
+        "args": {
+            "url_or_file": "str — URL to JS file or local path",
+        },
+    },
 }
+
