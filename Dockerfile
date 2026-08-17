@@ -1,91 +1,145 @@
-# ── Stage 1: Kali apt tools ──────────────────────────────────────────────────
-FROM kalilinux/kali-rolling:latest AS tools
+# =============================================================================
+# RedTeam MCP v2 — Kali Linux Bug-Bounty Container (stable build)
+# =============================================================================
+# Build:
+#   docker build -t redteam-mcp-v2:latest -f Dockerfile .
+# Run:
+#   docker run -d --name redteam-mcp-v2 \
+#     -v redteam-data:/app/data -v redteam-reports:/app/reports \
+#     --add-host host.docker.internal:host-gateway \
+#     redteam-mcp-v2:latest tail -f /dev/null
+# =============================================================================
+
+FROM kalilinux/kali-rolling:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Single RUN layer — apt cache cleaned at the end to keep image lean.
-# python3 / python3-pip / python3-venv are the correct Kali package names
-# (Kali 2024.4+ ships Python 3.12 as 'python3'; no versioned suffix in apt).
+# ── 1. Kali apt packages ─────────────────────────────────────────────────────
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        curl wget git ca-certificates \
-        nmap \
-        nikto \
-        sslscan \
-        dnsrecon \
-        gobuster \
-        ffuf \
-        hydra \
-        wpscan \
-        wafw00f \
-        sqlmap \
-        commix \
-        theharvester \
+        # Core system utilities
+        curl wget git ca-certificates tini unzip tar build-essential \
+        # JSON parsing
+        jq \
+        # DNS utilities: dig, nslookup
+        bind9-dnsutils \
+        # Port scanning
+        nmap naabu \
+        # Web vulnerability scanners & fingerprinting
+        nikto wafw00f sslscan whatweb \
+        # Template-based vuln scanner
+        nuclei \
+        # Subdomain & DNS enumeration
+        subfinder amass dnsx \
+        # HTTP probing
+        httpx-toolkit \
+        # Web fuzzers & content discovery
+        gobuster ffuf wpscan \
+        # Bulk DNS resolution
+        massdns \
+        # Brute-force & exploitation
+        hydra sqlmap commix metasploit-framework \
+        # Python environment
         python3 python3-pip python3-venv \
-        wordlists \
+        # Wordlists (dirb, rockyou + SecLists ~519MB)
+        wordlists seclists \
     && \
     (gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null || true) && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Metasploit in its own layer — it's ~1 GB and changes rarely.
-# Separating it means the layer above stays cached on rebuilds.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends metasploit-framework && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# ── 2. Pre-built release binaries (curl + unzip — proven approach) ───────────
 
-# ── Stage 2: Go-based tools ───────────────────────────────────────────────────
-FROM tools AS gotools
+# feroxbuster — recursive web fuzzer
+RUN curl -sSL --retry 3 --retry-delay 5 \
+    "https://github.com/epi052/feroxbuster/releases/download/v2.10.4/x86_64-linux-feroxbuster.zip" \
+    -o /tmp/ferox.zip && \
+    unzip -o /tmp/ferox.zip feroxbuster -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/feroxbuster && \
+    rm -f /tmp/ferox.zip
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends golang-go && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# kerbrute — Kerberos AD enumeration
+RUN curl -sSL --retry 3 --retry-delay 5 \
+    "https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64" \
+    -o /usr/local/bin/kerbrute && \
+    chmod +x /usr/local/bin/kerbrute
 
-# Disable interactive git prompts inside Docker
-ENV GONOSUMCHECK=* \
-    GOFLAGS=-mod=mod \
-    GIT_TERMINAL_PROMPT=0 \
-    GOPATH=/root/go
+# rustscan — ultra-fast port scanner
+RUN curl -sSL --retry 3 --retry-delay 5 \
+    "https://github.com/RustScan/RustScan/releases/download/2.3.0/rustscan_2.3.0_amd64.deb" \
+    -o /tmp/rustscan.deb && \
+    dpkg -i /tmp/rustscan.deb 2>/dev/null || apt-get install -f -y && \
+    rm -f /tmp/rustscan.deb
 
-# Install each tool in its own layer for better cache granularity
-RUN go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-RUN go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-# amass moved to owasp-amass org (projectdiscovery/amass is archived)
-RUN go install -v github.com/owasp-amass/amass/v4/cmd/amass@latest
+# gitleaks — git secret scanner
+RUN curl -sSL --retry 3 --retry-delay 5 \
+    "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" \
+    | tar -xzf - -C /usr/local/bin/ gitleaks && \
+    chmod +x /usr/local/bin/gitleaks
 
-# ── Stage 3: Final image ──────────────────────────────────────────────────────
-FROM tools AS final
+# trufflehog — credential scanner
+RUN curl -sSL --retry 3 --retry-delay 5 \
+    "https://github.com/trufflesecurity/trufflehog/releases/download/v3.82.6/trufflehog_3.82.6_linux_amd64.tar.gz" \
+    | tar -xzf - -C /usr/local/bin/ trufflehog && \
+    chmod +x /usr/local/bin/trufflehog
 
-# Copy only the compiled Go binaries — no Go toolchain in final image
-COPY --from=gotools /root/go/bin/subfinder /usr/local/bin/subfinder
-COPY --from=gotools /root/go/bin/httpx     /usr/local/bin/httpx
-COPY --from=gotools /root/go/bin/nuclei    /usr/local/bin/nuclei
-COPY --from=gotools /root/go/bin/amass     /usr/local/bin/amass
+# ── 3. Python-based tools (git clone + wrapper scripts) ──────────────────────
 
-# WhatWeb — available directly in Kali apt (not a RubyGem)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends whatweb && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# jwt_tool — JWT testing (not on PyPI)
+RUN git clone --depth=1 https://github.com/ticarpi/jwt_tool /opt/jwt_tool && \
+    pip3 install --no-cache-dir --break-system-packages -r /opt/jwt_tool/requirements.txt && \
+    printf '#!/bin/sh\nexec python3 /opt/jwt_tool/jwt_tool.py "$@"\n' > /usr/local/bin/jwt_tool && \
+    chmod +x /usr/local/bin/jwt_tool
 
-# Arjun — install into the venv (created below) to avoid apt package conflicts
-# We create the venv first, then install arjun into it along with mcp
+# corsy — CORS misconfiguration scanner (not on PyPI)
+RUN git clone --depth=1 https://github.com/s0md3v/Corsy /opt/corsy && \
+    pip3 install --no-cache-dir --break-system-packages requests && \
+    printf '#!/bin/sh\nexec python3 /opt/corsy/corsy.py "$@"\n' > /usr/local/bin/corsy && \
+    chmod +x /usr/local/bin/corsy
 
-# ── MCP server ────────────────────────────────────────────────────────────────
+# smuggler — HTTP request smuggling
+RUN git clone --depth=1 https://github.com/defparam/smuggler.git /opt/smuggler && \
+    printf '#!/bin/sh\nexec python3 /opt/smuggler/smuggler.py "$@"\n' > /usr/local/bin/smuggler && \
+    chmod +x /usr/local/bin/smuggler
+
+# ── 4. httpx symlink (Kali ships it as httpx-toolkit) ───────────────────────
+RUN if [ -f /usr/bin/httpx-toolkit ] && [ ! -f /usr/local/bin/httpx ]; then \
+        ln -s /usr/bin/httpx-toolkit /usr/local/bin/httpx; \
+    fi
+
+# ── 5. Python virtual environment + MCP server ──────────────────────────────
 WORKDIR /app
 
-# Venv isolates pip completely from apt-managed system packages
 RUN python3 -m venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY requirements.txt .
-# Install mcp + arjun both into the venv — no system package conflicts
-RUN pip install --no-cache-dir -r requirements.txt arjun
+# --only-binary :all: pydantic-core → use pre-built wheel, never compile Rust
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --only-binary :all: pydantic-core && \
+    pip install --no-cache-dir -r requirements.txt arjun
 
 COPY src/ ./src/
 
-# Pre-fetch Nuclei templates so first scan isn't slow
+# Create persistent data directories (mounted as volumes at runtime)
+RUN mkdir -p /app/data /app/reports /app/screenshots
+
+# Pre-fetch Nuclei templates (fail silently — also works at runtime)
 RUN nuclei -update-templates -silent || true
 
-ENV PYTHONUNBUFFERED=1
+# ── 6. Runtime configuration ─────────────────────────────────────────────────
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src
 
-CMD ["/app/.venv/bin/python", "src/server.py"]
+# Ollama LLM (override with -e at runtime)
+ENV OLLAMA_HOST=http://host.docker.internal:11434 \
+    OLLAMA_MODEL=llama3.2 \
+    MAX_AGENT_STEPS=50
+
+# Security controls
+ENV REDTEAM_ALLOWED_TARGETS="" \
+    REDTEAM_AUDIT_LOG=/app/data/audit.log \
+    REDTEAM_RATE_LIMIT=0
+
+# tini as PID 1 — reaps zombie processes from tool timeouts
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/app/.venv/bin/python", "/app/src/server.py"]

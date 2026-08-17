@@ -1,1 +1,20 @@
-mcp[cli]>=1.0.0
+# ── MCP server ────────────────────────────────────────────────────────────────
+# fastmcp standalone (actively maintained, replaces mcp.server.fastmcp)
+# Python 3.11+ compatible
+fastmcp==2.3.3
+
+# ── Ollama LLM integration ────────────────────────────────────────────────────
+# Official Ollama Python SDK — local & cloud models
+ollama==0.4.8
+
+# ── Data validation & structured output ──────────────────────────────────────
+pydantic>=2.11.5
+
+# ── HTTP client (fastmcp>=2.3 requires >=0.28.1; pin latest stable) ──────────
+httpx==0.28.1
+
+# ── Async SQLite for memory persistence ──────────────────────────────────────
+aiosqlite==0.20.0
+
+# ── HTML report templating ────────────────────────────────────────────────────
+jinja2==3.1.6

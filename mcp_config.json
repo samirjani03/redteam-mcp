@@ -5,7 +5,7 @@
       "args": [
         "exec",
         "-i",
-        "redteam-mcp",
+        "my-mcp-container",
         "/app/.venv/bin/python",
         "/app/src/server.py"
       ],

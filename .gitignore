@@ -1,0 +1,93 @@
+# =============================================================================
+# RedTeam MCP — Git Ignore Rules
+# =============================================================================
+howtorun.txt
+newdockerfile.md
+PROGRESS.md
+weakness.md
+new.txt
+# ── Python Virtual Environments ──────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ── Python Caches & Bytecode ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ── Environment Variables & Credentials ──────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# ── Local Databases, Reports & Data Storage ───────────────────────────────────
+data/
+reports/
+*.db
+*.sqlite
+*.sqlite3
+audit.log
+harvest_out*
+
+# ── Logs & Temporary Files ────────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# ── OS Generated Files ────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ── IDE & Editor Folders ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# ── Tool / AI Assistant Caches ────────────────────────────────────────────────
+.continue/
+.kiro/
+.roo/
+.claude/
+graphify-out/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

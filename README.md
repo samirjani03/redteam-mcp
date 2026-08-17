@@ -1,111 +1,140 @@
-# 🔴 Red Team MCP Server
+# 🔴 RedTeam MCP — Kali Linux Security Assistant & Agentic Server
 
-A powerful penetration testing MCP server that runs **20 real hacking tools** inside a **Kali Linux Docker container** and connects them directly to AI assistants like Cursor, Claude, or any MCP-compatible IDE.
+An LLM-driven **Model Context Protocol (MCP)** server that connects AI assistants and IDEs (Cursor, Claude Desktop, VS Code, Kiro, Antigravity) to a suite of **42 Kali Linux & bug bounty security tools** running inside a container.
 
-Instead of typing commands manually, you just ask in plain English:
-> *"Scan ports on 192.168.1.1"*
-> *"Find subdomains of example.com"*
-> *"Check if this site has SQL injection"*
-
-The AI calls the right tool, runs it in Kali Linux, and gives you the results.
+It supports both **direct tool calls** (e.g., `"Run an nmap scan on scanme.nmap.org"`) and **autonomous multi-step pentesting** powered by local Ollama models (`pentest_target`).
 
 ---
 
-## 🛠️ Tools Included (20 total)
+## 🛠️ Included Tools & Capabilities (42 MCP Tools)
 
-| Tool | Purpose |
-|------|---------|
-| nmap | Port & service scanning |
-| gobuster | Directory brute-forcing |
-| ffuf | Web fuzzing |
-| sqlmap | SQL injection |
-| nikto | Web vulnerability scanning |
-| nuclei | Template-based vuln scanning |
-| whatweb | Technology fingerprinting |
-| subfinder | Subdomain enumeration |
-| httpx | HTTP probing |
-| wpscan | WordPress scanning |
-| amass | Attack surface mapping |
-| hydra | Password brute-forcing |
-| curl | Raw HTTP requests |
-| dnsrecon | DNS enumeration |
-| theHarvester | OSINT harvesting |
-| wafw00f | WAF detection |
-| sslscan | SSL/TLS auditing |
-| commix | Command injection |
-| arjun | Hidden parameter discovery |
-| metasploit | Auxiliary module runner |
+### 1. Network Recon & Port Scanning
+* **`nmap_scan`**: Detailed service and script port scanning.
+* **`rustscan`**: Ultra-fast port discovery piped to Nmap.
+* **`naabu_scan`**: Fast SYN-based port scanner, ideal as a first pass before nmap on large ranges.
 
----
+### 2. OSINT, DNS & Subdomain Enumeration
+* **`subfinder_enum`**: Passive subdomain discovery.
+* **`amass_enum`**: In-depth DNS enumeration & attack surface mapping.
+* **`dnsrecon_enum`**: DNS record reconnaissance.
+* **`dnsx_resolve`**: Fast bulk DNS resolution & filtering of subdomain lists.
+* **`alterx_permute`**: Wordlist-based subdomain permutation for finding non-obvious hosts.
+* **`asnmap_lookup`**: Maps a domain/org to its ASN and owned IP ranges.
+* **`uncover_search`**: Queries Shodan/Censys/Fofa-style search engines for exposed hosts.
+* **`theharvester_osint`**: Public email, IP, and domain harvesting.
+* **`httpx_probe`**: Live HTTP service probing, status codes, titles, tech-detect.
 
-## ✅ Requirements
+### 3. Web Vulnerability & Technology Analysis
+* **`nikto_scan`**: Web server vulnerability auditing.
+* **`nuclei_scan`**: Template-based vulnerability scanner (CVEs, exposures, misconfigs).
+* **`whatweb_scan`**: Web technology & CMS fingerprinting.
+* **`sslscan_audit`**: SSL/TLS cipher & certificate inspection.
+* **`wpscan_scan`**: WordPress plugin, theme, and user enumeration.
 
-Before you start, make sure you have these installed:
+### 4. Content Discovery, Crawling & URL Mining
+* **`gobuster_dir`**: Directory & file brute-forcing.
+* **`ffuf_fuzz`**: Endpoint, parameter, and header fuzzing.
+* **`feroxbuster`**: Recursive web content discovery.
+* **`arjun_params`**: Hidden HTTP parameter discovery.
+* **`katana_crawl`**: Modern JS-aware crawler for discovering real, linked endpoints.
+* **`gau_urls`**: Pulls known URLs for a domain from Wayback Machine, Common Crawl & OTX.
+* **`waybackurls_fetch`**: Fetches archived historical URLs from the Wayback Machine.
 
-- **Git** — https://git-scm.com/downloads
-- **Docker Desktop** — https://www.docker.com/products/docker-desktop (enable Linux containers)
-- **Python 3.11** — https://www.python.org/downloads/release/python-3110 *(only needed locally if you want to edit the server; the container handles everything else)*
-- Any MCP-compatible IDE: **Cursor**, **VS Code + Kiro**, **Claude Desktop**, etc.
+### 5. Vulnerability Exploitation & Injection Testing
+* **`sqlmap_scan`**: Automated SQL injection detection & testing.
+* **`commix_scan`**: OS command injection testing.
+* **`dalfox_xss`**: Automated reflected/DOM XSS scanning and parameter mining.
+* **`hydra_brute`**: Multi-protocol credential brute-forcing.
+* **`kerbrute`**: Active Directory Kerberos user enumeration.
+* **`msf_auxiliary`**: Non-interactive Metasploit module runner.
 
-> Python version note: The project is written for Python 3.11+. The Docker container uses Kali's built-in Python 3 (3.12). Both work fine.
+### 6. Subdomain Takeover, Secrets & Visual Recon
+* **`subzy_takeover`**: Detects hijackable/dangling subdomains pointing at unclaimed services.
+* **`gitleaks_scan`**: Scans for hardcoded secrets, API keys, and credentials.
+* **`gowitness_screenshot`**: Bulk screenshots live web targets for fast visual triage.
 
----
+### 7. Out-of-Band Vulnerability Detection
+* **`interactsh_oob`**: Blind/OOB interaction detection for SSRF, XXE, and blind RCE via a unique callback domain.
 
-## 🚀 Installation — Step by Step
+### 8. Custom Requests
+* **`curl_request`**: Custom raw HTTP request execution (headers, methods, body, TLS verification toggle).
 
-### Step 1 — Clone the repo
+### 9. CVE Intelligence & Database
+* **`cve_stats`**: View local CVE database metrics.
 
-```bash
-git clone https://github.com/YOUR_USERNAME/redteam-mcp.git
-cd redteam-mcp
-```
-
----
-
-### Step 2 — Build the Docker image
-
-This downloads Kali Linux and installs all 20 tools. Takes **10–20 minutes** the first time.
-
-```bash
-docker build -t redteam-mcp:latest .
-```
-
-You only ever need to run this once (or when you update the project).
-
----
-
-### Step 3 — Start the container
-
-**Windows (PowerShell):**
-```powershell
-.\run.ps1
-```
-
-**Mac / Linux:**
-```bash
-bash run.sh
-```
-
-Verify it's running:
-```bash
-docker ps
-```
-You should see `redteam-mcp` with status `Up`.
+### 10. Agentic Autonomous Pentesting & Memory
+* **`pentest_target`**: Plain-English autonomous multi-step security goal planning loop (Ollama).
+* **`generate_report`**: Autonomous testing + Markdown/HTML report generation.
+* **`export_report`**: Save penetration testing reports directly to `/app/reports/`.
+* **`search_findings`**: Search SQLite history of past scan findings.
+* **`get_attack_surface`**: Aggregated target intelligence lookup.
+* **`list_sessions`**: Session history & audit trail.
 
 ---
 
-### Step 4 — Connect your IDE
+## 💻 Connecting RedTeam MCP to Claude Desktop (Windows)
 
-Open your MCP config file in your IDE and paste this:
+You can connect RedTeam MCP directly to **Claude Desktop on Windows** so Claude can use all Kali tools directly in conversation.
 
+### Step-by-Step Configuration Guide:
+
+1. **Open Claude Desktop Settings**:
+   * Launch **Claude Desktop**.
+   * Click on your profile/icon or open **Settings**.
+   * Click on **Developer** in the left menu.
+   * Click **Edit Config** (this opens `claude_desktop_config.json` in your default text editor).
+
+   *(Alternatively, open `%APPDATA%\Claude\claude_desktop_config.json` in Notepad or File Explorer).*
+
+2. **Paste the MCP Server Configuration**:
+   Add the `redteam-kali` server entry to your JSON file:
+
+   ```json
+   {
+     "mcpServers": {
+       "redteam-kali": {
+         "command": "docker",
+         "args": [
+           "exec",
+           "-i",
+           "redteam-mcp",
+           "/app/.venv/bin/python",
+           "/app/src/server.py"
+         ],
+         "disabled": false,
+         "autoApprove": []
+       }
+     }
+   }
+   ```
+
+3. **Save & Restart**:
+   * Save `claude_desktop_config.json`.
+   * Completely close and restart **Claude Desktop**.
+   * You will see a hammer/tool icon indicating `redteam-kali` tools are connected!
+
+---
+
+## ⚙️ Connecting to Other IDEs
+
+| IDE | Config File Location |
+| :--- | :--- |
+| **Cursor** | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global) |
+| **VS Code / Kiro** | `.kiro/settings/mcp.json` or `.vscode/mcp.json` |
+| **Roo Code / Antigravity** | `.roo/mcp.json` or `mcp_config.json` |
+
+Configuration JSON block for all IDEs:
 ```json
 {
   "mcpServers": {
     "redteam-kali": {
       "command": "docker",
       "args": [
-        "exec", "-i", "redteam-mcp",
-        "/app/.venv/bin/python", "/app/src/server.py"
+        "exec",
+        "-i",
+        "redteam-mcp",
+        "/app/.venv/bin/python",
+        "/app/src/server.py"
       ],
       "disabled": false,
       "autoApprove": []
@@ -114,92 +143,78 @@ Open your MCP config file in your IDE and paste this:
 }
 ```
 
-**Where to paste it:**
-
-| IDE | Config file location |
-|-----|---------------------|
-| Cursor | `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project) |
-| VS Code + Kiro | Already at `.kiro/settings/mcp.json` in this project |
-| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) |
-
-After pasting, **reload your IDE window** (`Ctrl+Shift+P` → `Reload Window`).
-
 ---
 
-### Step 5 — Start asking questions
+## 🚀 Quick Start Guide
 
-You're ready. Just type in natural language:
-
-```
-Scan ports on scanme.nmap.org
-Find subdomains of tesla.com
-Check if http://testphp.vulnweb.com has SQL injection
-Detect the WAF on cloudflare.com
-Run a nikto scan on http://testphp.vulnweb.com
+### 1. Build the Docker Image
+```bash
+docker build -t redteam-mcp:latest .
 ```
 
----
-
-## 📋 Daily Usage Guide
-
-### Start the project
+### 2. Start the Container
+**Windows (PowerShell):**
 ```powershell
 .\run.ps1
 ```
-Then reload your IDE window.
 
-### Stop when done
+**Linux / macOS:**
 ```bash
-docker stop redteam-mcp
+bash run.sh
 ```
 
-### Restart the container
+### 3. Verify Container Status
 ```bash
-docker restart redteam-mcp
+docker ps
+```
+The container `redteam-mcp` will show status `Up`.
+
+### 4. Test Server Execution (PowerShell Helper)
+```powershell
+.\mcp-helper-fixed.ps1 "nmap scan scanme.nmap.org"
 ```
 
-### Full reset (if something breaks)
-```bash
-docker rm -f redteam-mcp
-.\run.ps1
+---
+
+## 🏗️ Architecture & Modules
+
+```text
+redteam-mcp/
+├── Dockerfile                  # Kali Linux Docker runtime image
+├── requirements.txt            # FastMCP, Ollama SDK, Pydantic, HTTPX, AIOSQLite, Jinja2
+├── run.ps1 / run.sh            # Container launch scripts
+├── mcp_config.json             # Root IDE MCP configuration template
+└── src/
+    ├── server.py               # Main MCP Server entry point (42 tools registered)
+    ├── agent/                  # PentestAgent Ollama loop & reasoning prompts
+    ├── tools/                  # Shell executor, output formatter, tool registry
+    ├── parsers/                # Typed Pydantic parsers (Nmap, Nuclei, Nikto, WhatWeb, etc.)
+    ├── memory/                 # SQLite store & NVD CVE cross-reference engine
+    ├── reporting/              # Markdown & HTML report generators
+    └── security/               # Target allowlist, sliding-window rate limiter, JSONL audit logger
 ```
 
-### Rebuild the image (only after editing Dockerfile or server.py)
-```bash
-docker rm -f redteam-mcp
-docker build -t redteam-mcp:latest .
-.\run.ps1
-```
+---
 
-### Check container logs
-```bash
-docker logs redteam-mcp
-```
+## 🛡️ Security & Target Controls
 
-### Open a shell inside the container
-```bash
-docker exec -it redteam-mcp /bin/bash
-```
+The server includes built-in safety controls configured via environment variables:
+
+* `REDTEAM_ALLOWED_TARGETS`: Comma-separated list of IP addresses, CIDR ranges, or domain names permitted for scanning. (Leave empty for open lab testing).
+* `REDTEAM_RATE_LIMIT`: Sliding-window tool call rate limiter per minute (Default: `0` / unlimited).
+* `REDTEAM_AUDIT_LOG`: Path to append-only audit log (`/app/data/audit.log`).
+
+---
+
+## 📋 Changelog note (v2 doc sync)
+
+Compared against the live registered tool list as of this update:
+
+* **Added to docs** (were live but undocumented): `naabu_scan`, `dnsx_resolve`, `alterx_permute`, `asnmap_lookup`, `uncover_search`, `katana_crawl`, `gau_urls`, `waybackurls_fetch`, `dalfox_xss`, `subzy_takeover`, `gitleaks_scan`, `gowitness_screenshot`, `interactsh_oob`
+* **Documented but not currently live** — confirm if intentional: `wafw00f_detect`, `find_cves`, `sync_cve_db`
 
 ---
 
 ## ⚠️ Legal Notice
 
-Only use these tools against systems you **own** or have **explicit written permission** to test. Unauthorized scanning is illegal. The legal test target used in examples is `scanme.nmap.org` (provided by the nmap project for this purpose).
-
----
-
-## 📁 Project Structure
-
-```
-redteam-mcp/
-├── src/
-│   └── server.py        # MCP server with all 20 tools
-├── Dockerfile           # Kali Linux multi-stage build
-├── requirements.txt     # Python deps (mcp only)
-├── run.ps1              # Start container (Windows)
-├── run.sh               # Start container (Mac/Linux)
-└── .kiro/
-    └── settings/
-        └── mcp.json     # IDE MCP config
-```
+Always ensure you have **explicit written authorization** before performing security assessments on any host, application, or network. Scanning targets without permission is illegal.
